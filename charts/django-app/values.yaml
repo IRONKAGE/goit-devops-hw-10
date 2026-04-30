@@ -1,0 +1,36 @@
+replicaCount: 2
+image:
+  repository: ""
+  tag: "latest"
+service:
+  type: ClusterIP
+  port: 80
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    kubernetes.io/ingress.class: "nginx"
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: "django-app-tls"
+      hosts:
+        - ""
+env:
+  DEBUG: "0"
+  ALLOWED_HOSTS: "*"
+  POSTGRES_DB: "django_db"
+  POSTGRES_USER: "db_admin"
+  POSTGRES_HOST: "postgres-service"
+  POSTGRES_PORT: "5432"
+
+secrets:
+  SECRET_KEY: ""
+  POSTGRES_PASSWORD: ""
+
+hpa:
+  enabled: true

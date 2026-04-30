@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+spec:
+  {{- if not .Values.hpa.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: django
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+          # ДОДАЄМО СЕКРЕТИ (secretKeyRef)
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secret
+                  key: SECRET_KEY
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secret
+                  key: POSTGRES_PASSWORD
+          # ==========================================
+          # 1. PROBES (Самовідновлення кластера)
+          # ==========================================
+          livenessProbe:
+            httpGet:
+              path: /  # В ідеалі створити url /health/ у Django
+              port: 8000
+            initialDelaySeconds: 15 # Даємо Gunicorn час на запуск
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+          # ==========================================
+          # 2. RESOURCES (Захист від "падіння" серверів)
+          # ==========================================
+          resources:
+            requests:
+              cpu: "100m"      # Гарантований мінімум
+              memory: "128Mi"
+            limits:
+              cpu: "500m"      # Жорсткий максимум (запобігає витоку пам'яті)
+              memory: "512Mi"

@@ -1,0 +1,56 @@
+controller:
+  admin:
+    username: "admin"
+    password: "admin_password_123"
+  installPlugins:
+    - kubernetes
+    - workflow-aggregator
+    - git
+    - configuration-as-code
+
+  # Конфігурація як код (JCasC)
+  JCasC:
+    defaultConfig: true
+    configScripts:
+      # 1. Глобальні змінні для пайплайнів
+      global-env: |
+        jenkins:
+          globalNodeProperties:
+          - envVars:
+              env:
+              - key: "GITHUB_REPO"
+                value: "https://github.com/IRONKAGE/goit-devops-hw-08-09.git"
+
+      # 2. Налаштування хмари Kubernetes та агента Kaniko
+      k8s-cloud: |
+        jenkins:
+          clouds:
+          - kubernetes:
+              name: "kubernetes"
+              serverUrl: "https://kubernetes.default"
+              namespace: "jenkins"
+              jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
+              jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
+              templates:
+              - name: "kaniko-agent"
+                namespace: "jenkins"
+                label: "kaniko"
+                containers:
+                - name: "jnlp"
+                  image: "jenkins/inbound-agent:latest"
+                - name: "kaniko"
+                  image: "gcr.io/kaniko-project/executor:debug"
+                  command: "/busybox/cat"
+                  ttyEnabled: true
+                - name: "git"
+                  image: "alpine/git:latest"
+                  command: "cat"
+                  ttyEnabled: true
+                - name: "aws-cli"
+                  image: "amazon/aws-cli:latest"
+                  command: "cat"
+                  ttyEnabled: true
+
+persistence:
+  enabled: true
+  size: "8Gi"

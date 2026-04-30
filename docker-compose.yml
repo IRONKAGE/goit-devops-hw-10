@@ -1,0 +1,39 @@
+services:
+  localstack:
+    image: localstack/localstack-pro:latest
+    container_name: localstack_main_89
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
+      - DEBUG=1
+    volumes:
+      - "./volume_89:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+  db:
+    image: postgres:15-alpine
+    container_name: postgres_db_89
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data_89:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+
+  django:
+    build: .
+    container_name: django_web_89
+    env_file: .env
+    volumes:
+      - ./core:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data_89:

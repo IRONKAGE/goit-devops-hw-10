@@ -1,0 +1,4 @@
+apiVersion: v2
+name: django-app
+description: A Helm chart for Django Kubernetes Deployment
+version: 0.1.0

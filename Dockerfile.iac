@@ -1,0 +1,17 @@
+FROM python:3.10.12-slim
+ENV TERRAFORM_VERSION=1.5.7
+ENV TERRAGRUNT_VERSION=v0.55.0
+ENV HELM_VERSION=v3.14.0
+ENV KUBECTL_VERSION=v1.30.0
+
+RUN apt-get update && apt-get install -y wget unzip curl awscli git && rm -rf /var/lib/apt/lists/*
+RUN wget https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
+    && unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip -d /usr/local/bin/ && rm terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+RUN curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/${TERRAGRUNT_VERSION}/terragrunt_linux_amd64 \
+    && chmod +x terragrunt && mv terragrunt /usr/local/bin/
+RUN curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+    && chmod +x kubectl && mv kubectl /usr/local/bin/
+RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \
+    && chmod +x get_helm.sh && ./get_helm.sh --version ${HELM_VERSION} && rm get_helm.sh
+RUN pip install --no-cache-dir terraform-local
+WORKDIR /workspace
