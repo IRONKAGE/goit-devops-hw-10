@@ -5,14 +5,14 @@ remote_state {
     if_exists = "overwrite"
   }
   config = {
-    bucket         = "ironkage-tf-state-hw89-${get_aws_account_id()}"
+    bucket         = "ironkage-tf-state-hw10-${get_aws_account_id()}"
     key            = "${path_relative_to_include()}/terraform.tfstate"
     region         = "eu-central-1"
     encrypt        = true
-    dynamodb_table = "terraform-locks-hw89"
+    dynamodb_table = "terraform-locks-hw10"
   }
 }
 inputs = {
-  project_name = "ironkage-k8s-hw89"
+  project_name = "ironkage-k8s-hw10"
   region       = "eu-central-1"
 }

@@ -3,7 +3,7 @@
 # ==========================================
 environment  = "dev"          # <-- Запускає логіку вимкнення NAT Gateway
 region       = "eu-central-1"
-project_name = "ironkage-hw89-dev"
+project_name = "ironkage-hw10-dev"
 
 # ==========================================
 # Мережа - VPC
@@ -16,13 +16,13 @@ availability_zones   = ["eu-central-1a", "eu-central-1b"]
 # ==========================================
 # Реєстр - ECR
 # ==========================================
-ecr_repo_name = "django-app-hw89-dev"
+ecr_repo_name = "django-app-hw10-dev"
 scan_on_push  = false         # <-- Економимо час при пуші локально
 
 # ==========================================
 # ОРКЕСТРАЦІЯ - EKS
 # ==========================================
-cluster_name    = "ironkage-k8s-hw89-dev"
+cluster_name    = "ironkage-k8s-hw10-dev"
 cluster_version = "1.31"
 
 # Типи та кількість інстансів (Економний режим для розробки)
@@ -37,4 +37,4 @@ enabled_cluster_log_types = []
 # ==========================================
 # GITOPS - ArgoCD
 # ==========================================
-github_repo = "https://github.com/IRONKAGE/goit-devops-hw-08-09.git"
+github_repo = "https://github.com/IRONKAGE/goit-devops-hw-10.git"

@@ -112,6 +112,29 @@ module "argo_cd" {
   depends_on  = [module.eks]
 }
 
+module "rds" {
+  source = "./modules/rds"
+
+  project_name       = var.project_name
+  environment        = var.environment
+
+  vpc_id             = module.vpc.vpc_id
+  vpc_cidr_block     = module.vpc.vpc_cidr_block
+  private_subnet_ids = module.vpc.private_subnet_ids
+
+  # ===================================================
+  # ГОЛОВНИЙ ПЕРЕМИКАЧ: true для Aurora, false для RDS
+  # ===================================================
+  use_aurora         = false
+
+  engine                    = "postgres"
+  engine_version            = "18"
+  db_parameter_group_family = "postgres18"
+  instance_class            = "db.t3.micro"
+  db_port                   = 5432
+  multi_az                  = false
+}
+
 # ---------------------------------------------
 # НАЛАШТУВАННЯ HELM ПРОВАЙДЕРА
 # ---------------------------------------------

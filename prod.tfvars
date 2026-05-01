@@ -4,7 +4,7 @@
 # Ця змінна автоматично створить NAT Gateway
 environment  = "prod"
 region       = "eu-central-1"
-project_name = "ironkage-hw89-prod"
+project_name = "ironkage-hw10-prod"
 
 # ==========================================
 # Мережа - VPC (Multi-AZ)
@@ -18,14 +18,14 @@ availability_zones   = ["eu-central-1a", "eu-central-1b", "eu-central-1c"]
 # ==========================================
 # Реєстр - ECR
 # ==========================================
-ecr_repo_name = "django-app-hw89-prod"
+ecr_repo_name = "django-app-hw10-prod"
 # Вмикаємо сканування образів на вразливості при пуші
 scan_on_push  = true
 
 # ==========================================
 # ОРКЕСТРАЦІЯ - EKS (Production Grade)
 # ==========================================
-cluster_name    = "ironkage-k8s-hw89-prod"
+cluster_name    = "ironkage-k8s-hw10-prod"
 cluster_version = "1.31"
 
 # Типи інстансів для робочих вузлів (Worker Nodes)
@@ -44,4 +44,4 @@ enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager
 # ==========================================
 # GITOPS - ArgoCD
 # ==========================================
-github_repo = "https://github.com/IRONKAGE/goit-devops-hw-08-09.git"
+github_repo = "https://github.com/IRONKAGE/goit-devops-hw-10.git"
