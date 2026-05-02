@@ -14,26 +14,55 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      # ==========================================
+      # 0. INIT CONTAINERS (Перевірка готовності БД)
+      # ==========================================
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - 'sh'
+            - '-c'
+            - |
+              until nc -z -v -w30 {{ .Values.env.POSTGRES_HOST }} {{ .Values.env.POSTGRES_PORT }}; do
+                echo "⏳ Waiting for database connection at {{ .Values.env.POSTGRES_HOST }}:{{ .Values.env.POSTGRES_PORT }}...";
+                sleep 2;
+              done;
+              echo "✅ Database is ready!";
+
       containers:
         - name: django
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           ports:
             - containerPort: 8000
+
+          # Завантаження звичайних несекретних змінних (DEBUG, ALLOWED_HOSTS тощо)
           envFrom:
             - configMapRef:
                 name: {{ .Release.Name }}-config
-          # ДОДАЄМО СЕКРЕТИ (secretKeyRef)
+
           env:
+            # 1. SECRET_KEY беремо зі стандартного секрету чарту
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ .Release.Name }}-secret
                   key: SECRET_KEY
+
+            # 2. ПАРОЛЬ ДО БД беремо з нашого гібридного (dev/prod) секрету!
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Release.Name }}-secret
-                  key: POSTGRES_PASSWORD
+                  name: django-db-credentials # Назва з external-secret.yaml / secret.yaml
+                  key: DB_PASSWORD            # Ключ, який генерує AWS / Helm
+
+            # Також можемо підтягнути юзера, якщо він теж у секреті
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: django-db-credentials
+                  key: DB_USER
+
           # ==========================================
           # 1. PROBES (Самовідновлення кластера)
           # ==========================================

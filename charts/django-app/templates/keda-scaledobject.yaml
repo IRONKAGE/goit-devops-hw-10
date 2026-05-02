@@ -1,0 +1,24 @@
+{{- if .Values.celery.autoscaling.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ .Release.Name }}-celery-scaler
+spec:
+  scaleTargetRef:
+    # Динамічне ім'я Deployment з воркерами
+    name: {{ .Release.Name }}-celery-worker
+  minReplicaCount: {{ .Values.celery.autoscaling.minReplicas }}
+  maxReplicaCount: {{ .Values.celery.autoscaling.maxReplicas }}
+  triggers:
+    - type: aws-sqs-queue
+      metadata:
+        # Підтягуємо URL та параметри з values.yaml
+        queueURL: {{ .Values.celery.autoscaling.sqs.queueUrl | quote }}
+        queueLength: {{ .Values.celery.autoscaling.sqs.queueLength | quote }}
+        awsRegion: {{ .Values.celery.autoscaling.sqs.region | quote }}
+
+      {{- if eq .Values.environment "prod" }}
+      authenticationRef:
+        name: {{ .Release.Name }}-keda-aws-auth
+      {{- end }}
+{{- end }}

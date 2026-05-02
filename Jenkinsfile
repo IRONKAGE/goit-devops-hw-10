@@ -26,6 +26,12 @@ pipeline {
                             env.ECR_REGISTRY = "${accountId}.dkr.ecr.${props.AWS_REGION}.amazonaws.com"
                             env.KANIKO_EXTRA_ARGS = "" // AWS Prod: безпечний HTTPS
                         }
+
+                        env.CLUSTER_NAME = props.CLUSTER_NAME
+                        env.AWS_LBC_ROLE_ARN = props.AWS_LBC_ROLE_ARN
+                        env.ESO_ROLE_ARN = props.ESO_ROLE_ARN
+                        env.KARPENTER_ROLE_ARN = props.KARPENTER_ROLE_ARN
+
                     } else {
                         env.ECR_REGISTRY = props.ECR_REGISTRY
                         env.KANIKO_EXTRA_ARGS = "--insecure --insecure-pull" // LocalStack: вимикаємо TLS для HTTP
@@ -38,7 +44,6 @@ pipeline {
         stage('Build & Push (Kaniko)') {
             steps {
                 container('kaniko') {
-                    // Додано передачу аргументів TLS
                     sh '''
                     /kaniko/executor \
                       --context $(pwd) \
@@ -58,11 +63,31 @@ pipeline {
                     script {
                         sh "sed -i 's/tag: .*/tag: \"${IMAGE_TAG}\"/' charts/django-app/values.yaml"
 
+                        if (params.DEPLOY_ENV == 'prod') {
+                            sh """
+                                # AWS Load Balancer Controller
+                                sed -i "s/REPLACE_CLUSTER_NAME/${env.CLUSTER_NAME}/g" k8s-addons/aws-load-balancer-controller.yaml
+                                sed -i "s|REPLACE_LBC_ROLE_ARN|${env.AWS_LBC_ROLE_ARN}|g" k8s-addons/aws-load-balancer-controller.yaml
+
+                                # External Secrets Operator
+                                sed -i "s|REPLACE_ESO_ROLE_ARN|${env.ESO_ROLE_ARN}|g" k8s-addons/external-secrets.yaml
+
+                                # Karpenter
+                                sed -i "s/REPLACE_CLUSTER_NAME/${env.CLUSTER_NAME}/g" k8s-addons/karpenter.yaml
+                                sed -i "s|REPLACE_KARPENTER_ROLE_ARN|${env.KARPENTER_ROLE_ARN}|g" k8s-addons/karpenter.yaml
+                            """
+                        }
+
                         withCredentials([usernamePassword(credentialsId: 'github-cred', passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
                             sh """
                             git config user.email "jenkins@enterprise.com"
                             git config user.name "Jenkins GitOps"
                             git add charts/django-app/values.yaml
+
+                            if [ "${params.DEPLOY_ENV}" = "prod" ]; then
+                                git add k8s-addons/*.yaml
+                            fi
+
                             git commit -m "ci(${params.DEPLOY_ENV}): Update image tag to ${IMAGE_TAG} [skip ci]"
                             git push https://${GIT_USERNAME}:${GIT_PASSWORD}@${GITHUB_REPO#https://} HEAD:main
                             """

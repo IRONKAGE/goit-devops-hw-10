@@ -38,17 +38,23 @@ ifneq ($(filter deploy-local deploy-aws destroy-local destroy-aws test-local tes
 	endif
 endif
 
-# 4. Інтелектуальна логіка Ingress
-HELM_SET_FLAGS := --set secrets.SECRET_KEY=$(DJANGO_SECRET_KEY) --set secrets.POSTGRES_PASSWORD=$(POSTGRES_PASSWORD)
+# 4. Інтелектуальна логіка Ingress та змінні Helm
+HELM_SET_FLAGS := \
+    --set secrets.SECRET_KEY=$(DJANGO_SECRET_KEY) \
+    --set secrets.POSTGRES_PASSWORD=$(POSTGRES_PASSWORD) \
+    --set env.POSTGRES_HOST=$(POSTGRES_HOST) \
+    --set env.POSTGRES_USER=$(POSTGRES_USER) \
+    --set env.POSTGRES_DB=$(POSTGRES_DB)
 
 ifneq ($(DOMAIN),)
-	HELM_SET_FLAGS += --set ingress.enabled=true \
-	                  --set ingress.hosts[0].host=$(DOMAIN) \
-	                  --set ingress.tls[0].hosts[0]=$(DOMAIN)
-	USE_DOMAIN := true
+    HELM_SET_FLAGS += \
+        --set ingress.enabled=true \
+        --set ingress.hosts[0].host=$(DOMAIN) \
+        --set ingress.tls[0].hosts[0]=$(DOMAIN)
+    USE_DOMAIN := true
 else
-	HELM_SET_FLAGS += --set ingress.enabled=false
-	USE_DOMAIN := false
+    HELM_SET_FLAGS += --set ingress.enabled=false
+    USE_DOMAIN := false
 endif
 
 .DEFAULT_GOAL := help
@@ -59,9 +65,9 @@ endif
 # ==============================================================================
 
 help:
-	@echo "============================================================="
-	@echo " Доступні команди (Terragrunt + Helm):"
-	@echo "============================================================="
+	@echo "==============================================================================="
+	@echo "                    Доступні команди (Terragrunt + Helm):"
+	@echo "==============================================================================="
 	@echo "  make help                        - Показати це меню"
 	@echo "  make up                          - Запустити LocalStack Pro"
 	@echo "  make down                        - Зупинити LocalStack Pro"
@@ -72,14 +78,18 @@ help:
 	@echo "  make open-argocd                 - Відкрити UI ArgoCD та прокинути порт"
 	@echo "  make deploy-aws [env]            - Бойовий деплой (ClusterIP)"
 	@echo "  make deploy-aws [env] [domain]   - Бойовий деплой (Ingress + TLS)"
+	@echo "  make db-check [env]              - Перевірити конект Django до БД"
+	@echo "  make db-shell [env]              - Відкрити інтерактивний термінал БД (psql)"
+	@echo "  make db-migrate [env]            - Запустити міграції бази даних"
 	@echo "  make destroy-local [env]         - Знищити локальні ресурси"
 	@echo "  make destroy-aws [env]           - Знищити ресурси AWS"
 	@echo "  make clean                       - Очистити кеші Terragrunt/Terraform"
 	@echo "  make deep-clean                  - Видалити всі образи та кеші"
-	@echo "============================================================="
-	@echo " * Середовища: $(VALID_ENVS) (Поточне: $(ENV))"
-	@echo " * Обгортка:   $(TG_WRAPPER)"
-	@echo "============================================================="
+	@echo "==============================================================================="
+	@echo " * Доступні середовища: $(VALID_ENVS)"
+	@echo " * Поточне середовище: $(ENV)"
+	@echo " * Скрипт (Визначає ОС): $(TG_WRAPPER)"
+	@echo "==============================================================================="
 
 docker-ensure:
 	@echo "[*] Перевірка стану Docker..."
@@ -193,7 +203,48 @@ deploy-app:
 	$(TG_WRAPPER) helm upgrade --install $(APP_NAME) ./charts/django-app \
 		--set image.repository=$(ECR_URL) \
 		$(HELM_SET_FLAGS)
-	@echo "🚀 [SUCCESS] Проєкт успішно розгорнуто!"
+	@echo "🚀 [SUCCESS] Проект успішно розгорнуто!"
+
+# ==============================================================================
+# РОБОТА З БАЗОЮ ДАНИХ (БД для Django)
+# ==============================================================================
+
+db-check: docker-ensure
+	@echo "========================================"
+	@echo "🔍 Перевірка з'єднання з БД | Середовище: $(ENV)"
+	@echo "========================================"
+	@if [ "$(ENV)" = "prod" ]; then \
+		$(TG_WRAPPER) aws eks update-kubeconfig --region $(REGION) --name $(CLUSTER_NAME) >/dev/null 2>&1; \
+	fi
+	$(eval POD := $(shell $(TG_WRAPPER) kubectl get pods -l app=$(APP_NAME) -o jsonpath='{.items[0].metadata.name}' 2>/dev/null))
+	@if [ -z "$(POD)" ]; then echo "❌ [ПОМИЛКА] Робочий под Django не знайдено!"; exit 1; fi
+	@echo "[*] Підключення до пода: $(POD)..."
+	$(TG_WRAPPER) kubectl exec -it $(POD) -- python manage.py check --database default
+	@echo "✅ [SUCCESS] Django успішно бачить базу даних!"
+
+db-shell: docker-ensure
+	@echo "========================================"
+	@echo "🛢️ Відкриття консолі PostgreSQL | Середовище: $(ENV)"
+	@echo "========================================"
+	@if [ "$(ENV)" = "prod" ]; then \
+		$(TG_WRAPPER) aws eks update-kubeconfig --region $(REGION) --name $(CLUSTER_NAME) >/dev/null 2>&1; \
+	fi
+	$(eval POD := $(shell $(TG_WRAPPER) kubectl get pods -l app=$(APP_NAME) -o jsonpath='{.items[0].metadata.name}' 2>/dev/null))
+	@if [ -z "$(POD)" ]; then echo "❌ [ПОМИЛКА] Робочий под Django не знайдено!"; exit 1; fi
+	@echo "[*] Відкриття psql терміналу в поді $(POD)..."
+	$(TG_WRAPPER) kubectl exec -it $(POD) -- python manage.py dbshell
+
+db-migrate: docker-ensure
+	@echo "========================================"
+	@echo "🏗️ Накочування міграцій БД | Середовище: $(ENV)"
+	@echo "========================================"
+	@if [ "$(ENV)" = "prod" ]; then \
+		$(TG_WRAPPER) aws eks update-kubeconfig --region $(REGION) --name $(CLUSTER_NAME) >/dev/null 2>&1; \
+	fi
+	$(eval POD := $(shell $(TG_WRAPPER) kubectl get pods -l app=$(APP_NAME) -o jsonpath='{.items[0].metadata.name}' 2>/dev/null))
+	@if [ -z "$(POD)" ]; then echo "❌ [ПОМИЛКА] Робочий под Django не знайдено!"; exit 1; fi
+	@echo "[*] Виконання python manage.py migrate..."
+	$(TG_WRAPPER) kubectl exec -it $(POD) -- python manage.py migrate
 
 # ==============================================================================
 # ОЧИЩЕННЯ (Видалення ресурсів)
@@ -233,7 +284,7 @@ deep-clean: clean
 	docker compose down --rmi all -v
 	-docker rmi -f $(APP_NAME):latest 2>/dev/null
 	-docker rmi -f $(TOOLCHAIN_IMG) 2>/dev/null
-	@echo "[+] Сервер повністю очищено від образів цього проєкту. Пам'ять звільнено!"
+	@echo "[+] Сервер повністю очищено від образів цього проекту. Пам'ять звільнено!"
 
 # Хак для ігнорування невідомих аргументів
 %:

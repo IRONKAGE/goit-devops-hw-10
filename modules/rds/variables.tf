@@ -6,6 +6,7 @@ variable "project_name" {
 variable "environment" {
   type        = string
   description = "Середовище (dev, prod)"
+  default     = "dev"
 }
 
 variable "vpc_id" {
@@ -63,4 +64,10 @@ variable "multi_az" {
   type        = bool
   description = "Ввімкнути Multi-AZ для RDS"
   default     = false
+}
+
+variable "engine_version" {
+  description = "Версія рушія бази даних Aurora PostgreSQL"
+  type        = string
+  default     = "18.0"
 }

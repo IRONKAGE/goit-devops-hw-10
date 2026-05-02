@@ -1,0 +1,9 @@
+{{- if and .Values.celery.autoscaling.enabled (eq .Values.environment "prod") }}
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: {{ .Release.Name }}-keda-aws-auth
+spec:
+  podIdentity:
+    provider: aws-eks # KEDA використає права, прив'язані до ServiceAccount пода!
+{{- end }}

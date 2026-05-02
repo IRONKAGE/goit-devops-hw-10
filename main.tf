@@ -123,12 +123,16 @@ module "rds" {
   private_subnet_ids = module.vpc.private_subnet_ids
 
   # ===================================================
-  # ГОЛОВНИЙ ПЕРЕМИКАЧ: true для Aurora, false для RDS
+  # РОЗУМНИЙ ПЕРЕМИКАЧ СЕРЕДОВИЩ
   # ===================================================
-  use_aurora         = false
+  # Якщо це prod -> розгортаємо Aurora Serverless v2.
+  # Якщо dev (LocalStack) -> падаємо на звичайний RDS.
+  use_aurora         = var.environment == "prod" ? true : false
 
+  engine_version     = var.engine_version
+
+  # Параметри для фолбеку (використовуються у Dev / LocalStack Pro)
   engine                    = "postgres"
-  engine_version            = "18"
   db_parameter_group_family = "postgres18"
   instance_class            = "db.t3.micro"
   db_port                   = 5432
@@ -152,7 +156,8 @@ provider "helm" {
   kubernetes = {
     host                   = replace(data.aws_eks_cluster.main.endpoint, "localhost.localstack.cloud", "172.18.0.2")
 
-    # ВИПРАВЛЕНО: Якщо це dev (insecure=true), передаємо null (нічого). Якщо prod - даємо сертифікат.
+    # Якщо це dev (insecure=true), передаємо null (нічого).
+    # Якщо це prod - даємо сертифікат.
     cluster_ca_certificate = var.environment == "dev" ? null : base64decode(data.aws_eks_cluster.main.certificate_authority[0].data)
 
     token                  = data.aws_eks_cluster_auth.main.token

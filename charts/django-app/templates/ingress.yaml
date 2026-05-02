@@ -4,9 +4,36 @@ kind: Ingress
 metadata:
   name: {{ .Release.Name }}-ingress
   annotations:
-    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    # 1. Завантажуємо базові анотації (наприклад, для локального Nginx)
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+
+    # 2. Додаємо ALB-анотації ТІЛЬКИ для AWS
+    {{- if eq .Values.environment "prod" }}
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+    alb.ingress.kubernetes.io/healthcheck-path: "/"
+
+    # ARN-и підтягуємо зі змінних, щоб не хардкодити AWS ID у шаблоні
+    {{- if .Values.ingress.alb.certificateArn }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.alb.certificateArn | quote }}
+    {{- end }}
+    {{- if .Values.ingress.alb.wafArn }}
+    alb.ingress.kubernetes.io/wafv2-acl-arn: {{ .Values.ingress.alb.wafArn | quote }}
+    {{- end }}
+    {{- end }}
+
 spec:
+  # Для Prod ми використовуємо ALB, тому ingressClassName не потрібен,
+  # але для Dev (Nginx) він може бути корисним.
+  {{- if ne .Values.environment "prod" }}
   ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+
   {{- if .Values.ingress.tls }}
   tls:
     {{- range .Values.ingress.tls }}
