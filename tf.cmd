@@ -2,16 +2,25 @@
 setlocal EnableDelayedExpansion
 :: Обгортка для Windows (God Mode: LocalStack Pro + Real AWS + K8s)
 
+:: 0. Підвантаження .env файлу (якщо скрипт запускається без Makefile)
+if exist ".env" (
+    for /f "usebackq tokens=1,* delims==" %%A in (".env") do (
+        :: Ігноруємо порожні рядки та коментарі
+        if not "%%A"=="" if not "%%A"=="^#" set "%%A=%%B"
+    )
+)
+
+:: Конфігураційні змінні
+SET "TOOLCHAIN_IMG=ironkage-iac-toolchain-10:latest"
+SET "LS_CONTAINER=localstack_main_hw_10"
+
 echo [*] Перевірка/Збірка образу Toolchain...
-docker build -q -t ironkage-iac-toolchain-10:latest -f Dockerfile.iac .
+docker build -q -t %TOOLCHAIN_IMG% -f Dockerfile.iac .
 
 echo [+] Запуск команди: %*
 
 :: 1. Локальне середовище (LocalStack Pro)
 if "%~1"=="tflocal" (
-    :: Жорстко фіксуємо ім'я контейнера
-    SET "LS_CONTAINER=localstack_main_hw_10"
-
     :: Отримуємо ПЕРШУ мережу (обходимо баг з додатковими мережами від k3d)
     SET "LS_NETWORK="
     FOR /F "tokens=*" %%i IN ('docker inspect !LS_CONTAINER! -f "{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}" 2^>nul') DO (
@@ -44,15 +53,22 @@ if "%~1"=="tflocal" (
         -e AWS_DEFAULT_REGION=eu-central-1 ^
         -e LOCALSTACK_AUTH_TOKEN="%LOCALSTACK_AUTH_TOKEN%" ^
         -e TF_VAR_localstack_ip="!LS_IP!" ^
-        ironkage-iac-toolchain-10:latest %*
+        %TOOLCHAIN_IMG% %*
 ) else (
 :: 2. Бойове середовище (Terragrunt, Helm, AWS CLI)
+    :: Страховка: створюємо папки, якщо їх немає, щоб Docker не створив їх під рутом
     if not exist "%USERPROFILE%\.kube" mkdir "%USERPROFILE%\.kube"
+    if not exist "%USERPROFILE%\.aws" mkdir "%USERPROFILE%\.aws"
+    if not exist "%USERPROFILE%\.ssh" mkdir "%USERPROFILE%\.ssh"
 
+    :: Запускаємо бойовий тулчейн із розширеним монтуванням
     docker run --rm -it ^
         -v "%cd%":/workspace ^
         -v "%USERPROFILE%\.aws":/root/.aws ^
         -v "%USERPROFILE%\.kube":/root/.kube ^
+        -v "%USERPROFILE%\.ssh":/root/.ssh ^
         -e PYTHONUNBUFFERED=1 ^
-        ironkage-iac-toolchain-10:latest %*
+        -e AWS_PROFILE="%AWS_PROFILE%" ^
+        -e AWS_REGION="%AWS_REGION%" ^
+        %TOOLCHAIN_IMG% %*
 )

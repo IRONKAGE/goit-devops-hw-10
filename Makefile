@@ -2,9 +2,11 @@
 # AWS DevOps Makefile (Enterprise UI + Terragrunt + Helm + Ingress)
 # ==============================================================================
 
-# Підтягуємо змінні для Helm
-include .env
-export $(shell sed 's/=.*//' .env)
+# Підтягуємо змінні для Helm (ігноруємо коментарі та порожні рядки)
+ifneq (,$(wildcard ./.env))
+    include .env
+    export $(shell sed 's/=.*//' .env | grep -v '^#')
+endif
 
 # 0. Кросплатформна підтримка (ОС та Docker)
 ifeq ($(OS),Windows_NT)
@@ -58,7 +60,11 @@ else
 endif
 
 .DEFAULT_GOAL := help
-.PHONY: help docker-ensure up down test-local test-aws deploy-local deploy-aws bootstrap-cluster deploy-app destroy-local destroy-aws clean deep-clean
+
+# Додано ВСІ цілі, щоб уникнути конфліктів з файлами
+.PHONY: help docker-ensure up down test-local test-aws deploy-local deploy-aws \
+        bootstrap-cluster deploy-app open-jenkins open-argocd db-check db-shell \
+        db-migrate destroy-local destroy-aws clean deep-clean
 
 # ==============================================================================
 # БАЗОВЕ МЕНЮ
@@ -108,18 +114,28 @@ down:
 	docker compose down
 
 # ==============================================================================
-# БРАУЗЕР (Кросплатформне відкриття)
+# БРАУЗЕР ТА БУФЕР ОБМІНУ (Кросплатформно)
 # ==============================================================================
 ifeq ($(OS),Windows_NT)
-	OPEN_CMD := start ""
+    OPEN_CMD := start ""
+    CLIP_CMD := clip
+    # Windows не підтримує osascript
+    AUTO_TYPE_JENKINS := echo "[!] Автоматичний ввід доступний лише на macOS"
+    AUTO_TYPE_ARGO := echo "[!] Автоматичний ввід доступний лише на macOS"
 else
-	UNAME_S := $(shell uname -s)
-	ifeq ($(UNAME_S),Linux)
-		OPEN_CMD := xdg-open
-	endif
-	ifeq ($(UNAME_S),Darwin)
-		OPEN_CMD := open
-	endif
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Linux)
+        OPEN_CMD := xdg-open
+        CLIP_CMD := xclip -selection clipboard 2>/dev/null || xsel --clipboard 2>/dev/null || echo "Буфер не налаштовано"
+        AUTO_TYPE_JENKINS := echo "[!] Автоматичний ввід доступний лише на macOS"
+        AUTO_TYPE_ARGO := echo "[!] Автоматичний ввід доступний лише на macOS"
+    endif
+    ifeq ($(UNAME_S),Darwin)
+        OPEN_CMD := open
+        CLIP_CMD := pbcopy
+        AUTO_TYPE_JENKINS := sleep 4 && osascript -e 'tell application "System Events"' -e 'keystroke "admin"' -e 'key code 48' -e 'keystroke "admin_password_123"' -e 'key code 36' -e 'end tell'
+        AUTO_TYPE_ARGO := sleep 5 && osascript -e 'tell application "System Events"' -e 'keystroke "admin"' -e 'key code 48' -e 'keystroke "$$ARGO_PASS"' -e 'key code 36' -e 'end tell'
+    endif
 endif
 
 # ==============================================================================
@@ -128,24 +144,20 @@ endif
 open-jenkins:
 	@echo "========================================"
 	@echo "⏳ Отримання Kubeconfig з LocalStack EKS..."
-	@echo "🤖 Режим 'Привид-друкар': через 10 секунд браузер відкриється і сам залогується!"
-	@echo "⚠️  УВАГА: Не чіпайте клавіатуру пару секунд, коли відкриється вкладка Jenkins :)"
 	@echo "========================================"
-	@(sleep 10 && open http://localhost:8080 && sleep 4 && osascript -e 'tell application "System Events"' -e 'keystroke "admin"' -e 'key code 48' -e 'keystroke "admin_password_123"' -e 'key code 36' -e 'end tell') &
-	./tf.sh bash -c "export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=eu-central-1 && aws --endpoint-url=http://172.18.0.2:4566 eks update-kubeconfig --region eu-central-1 --name ironkage-k8s-hw89-dev && sed -i 's/localhost.localstack.cloud/172.18.0.2/g' /root/.kube/config && kubectl port-forward --insecure-skip-tls-verify --address 0.0.0.0 svc/jenkins -n jenkins 8080:8080"
+	@(sleep 10 && $(OPEN_CMD) http://localhost:8080 && $(AUTO_TYPE_JENKINS)) &
+	./tf.sh bash -c "export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=$(REGION) && aws --endpoint-url=http://172.18.0.2:4566 eks update-kubeconfig --region $(REGION) --name $(CLUSTER_NAME) && sed -i 's/localhost.localstack.cloud/172.18.0.2/g' /root/.kube/config && kubectl port-forward --insecure-skip-tls-verify --address 0.0.0.0 svc/jenkins -n jenkins 8080:8080"
 
 open-argocd:
 	@echo "========================================"
 	@echo "⏳ Отримання Kubeconfig та пароля ArgoCD..."
-	@echo "🤖 Режим 'Привид-друкар': через 10 секунд браузер відкриється і сам залогується!"
 	@echo "========================================"
-	@# Дістаємо пароль АБСОЛЮТНО ТИХО, без логів tf.sh
-	$(eval ARGO_PASS := $(shell docker run --rm --network "goit-devops-hw-08-09_default" -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_DEFAULT_REGION=eu-central-1 -v ~/.kube:/root/.kube ironkage-iac-toolchain-89:latest bash -c "aws --endpoint-url=http://172.18.0.2:4566 eks update-kubeconfig --region eu-central-1 --name ironkage-k8s-hw89-dev >/dev/null 2>&1 && sed -i 's/localhost.localstack.cloud/172.18.0.2/g' /root/.kube/config && kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' --insecure-skip-tls-verify | base64 -d"))
+	$(eval ARGO_PASS := $(shell docker run --rm --network "goit-devops-hw-08-09_default" -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e AWS_DEFAULT_REGION=$(REGION) -v ~/.kube:/root/.kube $(TOOLCHAIN_IMG) bash -c "aws --endpoint-url=http://172.18.0.2:4566 eks update-kubeconfig --region $(REGION) --name $(CLUSTER_NAME) >/dev/null 2>&1 && sed -i 's/localhost.localstack.cloud/172.18.0.2/g' /root/.kube/config && kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' --insecure-skip-tls-verify | base64 -d"))
 	@echo "🔑 Логін: admin"
 	@echo "🔑 Пароль: $(ARGO_PASS) (Скопійовано в буфер обміну!)"
-	@echo -n "$(ARGO_PASS)" | pbcopy
-	@(sleep 10 && open https://localhost:8081 && sleep 5 && osascript -e 'tell application "System Events"' -e 'keystroke "admin"' -e 'key code 48' -e 'keystroke "$(ARGO_PASS)"' -e 'key code 36' -e 'end tell') &
-	./tf.sh bash -c "export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=eu-central-1 && aws --endpoint-url=http://172.18.0.2:4566 eks update-kubeconfig --region eu-central-1 --name ironkage-k8s-hw89-dev && sed -i 's/localhost.localstack.cloud/172.18.0.2/g' /root/.kube/config && kubectl port-forward --insecure-skip-tls-verify --address 0.0.0.0 svc/argocd-server -n argocd 8081:443"
+	@echo -n "$(ARGO_PASS)" | $(CLIP_CMD)
+	@(sleep 10 && $(OPEN_CMD) https://localhost:8081 && export ARGO_PASS="$(ARGO_PASS)" && $(AUTO_TYPE_ARGO)) &
+	./tf.sh bash -c "export AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test AWS_DEFAULT_REGION=$(REGION) && aws --endpoint-url=http://172.18.0.2:4566 eks update-kubeconfig --region $(REGION) --name $(CLUSTER_NAME) && sed -i 's/localhost.localstack.cloud/172.18.0.2/g' /root/.kube/config && kubectl port-forward --insecure-skip-tls-verify --address 0.0.0.0 svc/argocd-server -n argocd 8081:443"
 
 # ==============================================================================
 # ТЕСТУВАННЯ (Dry-Run)
