@@ -5,7 +5,7 @@
 # Підтягуємо змінні для Helm (ігноруємо коментарі та порожні рядки)
 ifneq (,$(wildcard ./.env))
     include .env
-    export $(shell sed 's/=.*//' .env | grep -v '^#')
+    export $(shell awk -F= '/^[a-zA-Z_]/ {print $$1}' .env)
 endif
 
 # 0. Кросплатформна підтримка (ОС та Docker)
