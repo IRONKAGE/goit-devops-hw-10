@@ -1,0 +1,4 @@
+apiVersion: v2
+name: platform-addons
+description: Infrastructure addons (Karpenter NodePools, Global Secrets, etc.)
+version: 0.1.0

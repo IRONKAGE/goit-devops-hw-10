@@ -17,8 +17,9 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = true
 
   tags = {
-    Name                     = "${var.vpc_name}-public-${count.index + 1}"
-    "kubernetes.io/role/elb" = "1" # Тег для публічних Load Balancers
+    Name                                        = "${var.project_name}-public-subnet"
+    "kubernetes.io/cluster/${var.project_name}" = "shared" # Варіанти: "shared" або "owned"
+    "kubernetes.io/role/elb"                    = "1"      # Критично для Публічного ALB
   }
 }
 
@@ -29,8 +30,10 @@ resource "aws_subnet" "private" {
   availability_zone = var.availability_zones[count.index]
 
   tags = {
-    Name                              = "${var.vpc_name}-private-${count.index + 1}"
-    "kubernetes.io/role/internal-elb" = "1" # Тег для внутрішніх Load Balancers
+    Name                                        = "${var.project_name}-private-subnet"
+    "kubernetes.io/cluster/${var.project_name}" = "shared"
+    "kubernetes.io/role/internal-elb"           = "1"      # Критично для Внутрішнього ALB
+    "karpenter.sh/discovery"                    = var.project_name # Потрібно для Karpenter!
   }
 }
 
