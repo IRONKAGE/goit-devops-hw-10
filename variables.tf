@@ -34,3 +34,9 @@ variable "localstack_ip" {
   type        = string
   default     = "172.18.0.2"
 }
+
+variable "engine_version" {
+  description = "Версія рушія бази даних (наприклад, 18 для PostgreSQL або 9.7 для MySQL)"
+  type        = string
+  default     = "18"
+}

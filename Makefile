@@ -23,9 +23,9 @@ endif
 VALID_ENVS   := dev prod
 DEFAULT_ENV  := dev
 REGION       := eu-central-1
-CLUSTER_NAME := ironkage-k8s-hw89-cluster
-APP_NAME     := django-app-hw89
-TOOLCHAIN_IMG:= ironkage-iac-toolchain-89:latest
+CLUSTER_NAME := ironkage-k8s-hw10-cluster
+APP_NAME     := django-app
+TOOLCHAIN_IMG:= ironkage-iac-toolchain-10:latest
 
 # 2. Зчитуємо аргументи
 CMD    := $(word 1, $(MAKECMDGOALS))
@@ -228,11 +228,10 @@ db-check: docker-ensure
 	@if [ "$(ENV)" = "prod" ]; then \
 		$(TG_WRAPPER) aws eks update-kubeconfig --region $(REGION) --name $(CLUSTER_NAME) >/dev/null 2>&1; \
 	fi
-	$(eval POD := $(shell $(TG_WRAPPER) kubectl get pods -l app=$(APP_NAME) -o jsonpath='{.items[0].metadata.name}' 2>/dev/null))
-	@if [ -z "$(POD)" ]; then echo "❌ [ПОМИЛКА] Робочий под Django не знайдено!"; exit 1; fi
-	@echo "[*] Підключення до пода: $(POD)..."
-	$(TG_WRAPPER) kubectl exec -it $(POD) -- python manage.py check --database default
-	@echo "✅ [SUCCESS] Django успішно бачить базу даних!"
+	@POD=$$($(TG_WRAPPER) kubectl get pods -l app=$(APP_NAME) -o jsonpath='{.items[0].metadata.name}' 2>/dev/null | tail -n 1); \
+	if [ -z "$$POD" ] || [[ "$$POD" == *" "* ]]; then echo "❌ [ПОМИЛКА] Робочий под Django не знайдено або помилка доступу до кластера!"; exit 1; fi; \
+	echo "[*] Підключення до пода: $$POD..."; \
+	$(TG_WRAPPER) kubectl exec -it $$POD -- python manage.py check --database default
 
 db-shell: docker-ensure
 	@echo "========================================"
@@ -241,10 +240,9 @@ db-shell: docker-ensure
 	@if [ "$(ENV)" = "prod" ]; then \
 		$(TG_WRAPPER) aws eks update-kubeconfig --region $(REGION) --name $(CLUSTER_NAME) >/dev/null 2>&1; \
 	fi
-	$(eval POD := $(shell $(TG_WRAPPER) kubectl get pods -l app=$(APP_NAME) -o jsonpath='{.items[0].metadata.name}' 2>/dev/null))
-	@if [ -z "$(POD)" ]; then echo "❌ [ПОМИЛКА] Робочий под Django не знайдено!"; exit 1; fi
-	@echo "[*] Відкриття psql терміналу в поді $(POD)..."
-	$(TG_WRAPPER) kubectl exec -it $(POD) -- python manage.py dbshell
+	@POD=$$($(TG_WRAPPER) kubectl get pods -l app=$(APP_NAME) -o jsonpath='{.items[0].metadata.name}' 2>/dev/null | tail -n 1); \
+	if [ -z "$$POD" ] || [[ "$$POD" == *" "* ]]; then echo "❌ [ПОМИЛКА] Робочий под Django не знайдено!"; exit 1; fi; \
+	$(TG_WRAPPER) kubectl exec -it $$POD -- python manage.py dbshell
 
 db-migrate: docker-ensure
 	@echo "========================================"
@@ -253,10 +251,9 @@ db-migrate: docker-ensure
 	@if [ "$(ENV)" = "prod" ]; then \
 		$(TG_WRAPPER) aws eks update-kubeconfig --region $(REGION) --name $(CLUSTER_NAME) >/dev/null 2>&1; \
 	fi
-	$(eval POD := $(shell $(TG_WRAPPER) kubectl get pods -l app=$(APP_NAME) -o jsonpath='{.items[0].metadata.name}' 2>/dev/null))
-	@if [ -z "$(POD)" ]; then echo "❌ [ПОМИЛКА] Робочий под Django не знайдено!"; exit 1; fi
-	@echo "[*] Виконання python manage.py migrate..."
-	$(TG_WRAPPER) kubectl exec -it $(POD) -- python manage.py migrate
+	@POD=$$($(TG_WRAPPER) kubectl get pods -l app=$(APP_NAME) -o jsonpath='{.items[0].metadata.name}' 2>/dev/null | tail -n 1); \
+	if [ -z "$$POD" ] || [[ "$$POD" == *" "* ]]; then echo "❌ [ПОМИЛКА] Робочий под Django не знайдено!"; exit 1; fi; \
+	$(TG_WRAPPER) kubectl exec -it $$POD -- python manage.py migrate
 
 # ==============================================================================
 # ОЧИЩЕННЯ (Видалення ресурсів)

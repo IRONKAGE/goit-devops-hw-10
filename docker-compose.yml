@@ -9,7 +9,7 @@ services:
       - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}
       - DEBUG=1
     volumes:
-      - "./volume_89:/var/lib/localstack"
+      - "./volume_10:/var/lib/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
 
   #PostgreSQL: Надійна об'єктно-реляційна система

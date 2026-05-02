@@ -42,7 +42,8 @@ variable "engine" {
 
 variable "engine_version" {
   type        = string
-  description = "Версія рушія бази даних"
+  description = "Версія рушія бази даних Aurora PostgreSQL"
+  default     = "18.0"
 }
 
 variable "db_parameter_group_family" {
@@ -64,10 +65,4 @@ variable "multi_az" {
   type        = bool
   description = "Ввімкнути Multi-AZ для RDS"
   default     = false
-}
-
-variable "engine_version" {
-  description = "Версія рушія бази даних Aurora PostgreSQL"
-  type        = string
-  default     = "18.0"
 }

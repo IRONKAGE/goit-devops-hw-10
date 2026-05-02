@@ -13,7 +13,7 @@ resource "aws_rds_cluster" "django_aurora_v2" {
   manage_master_user_password = true
 
   vpc_security_group_ids  = [aws_security_group.db_sg.id]
-  db_subnet_group_name    = aws_db_subnet_group.main.name
+  db_subnet_group_name    = aws_db_subnet_group.this.name
 
   # Якщо це prod, робимо снапшот. Якщо ні - дозволяємо швидке видалення
   skip_final_snapshot     = var.environment == "prod" ? false : true

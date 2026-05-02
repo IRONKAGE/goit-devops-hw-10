@@ -84,7 +84,7 @@ resource "aws_security_group" "vpc_endpoints" {
 resource "aws_vpc_endpoint" "ecr_api" {
   count               = var.environment == "prod" ? 1 : 0
   vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ecr.api"
+  service_name        = "com.amazonaws.${data.aws_region.current.id}.ecr.api"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = aws_subnet.private[*].id
@@ -96,7 +96,7 @@ resource "aws_vpc_endpoint" "ecr_api" {
 resource "aws_vpc_endpoint" "ecr_dkr" {
   count               = var.environment == "prod" ? 1 : 0
   vpc_id              = aws_vpc.main.id
-  service_name        = "com.amazonaws.${data.aws_region.current.name}.ecr.dkr"
+  service_name        = "com.amazonaws.${data.aws_region.current.id}.ecr.dkr"
   vpc_endpoint_type   = "Interface"
   private_dns_enabled = true
   subnet_ids          = aws_subnet.private[*].id
@@ -106,59 +106,9 @@ resource "aws_vpc_endpoint" "ecr_dkr" {
 resource "aws_vpc_endpoint" "s3" {
   count             = var.environment == "prod" ? 1 : 0
   vpc_id            = aws_vpc.main.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  service_name      = "com.amazonaws.${data.aws_region.current.id}.s3"
   vpc_endpoint_type = "Gateway"
 
   # Слід перевірити, чи є створені ресурс(и) aws_route_table.private
   route_table_ids   = aws_route_table.private[*].id
-}
-
-# ==========================================
-# 4. ТАБЛИЦІ МАРШРУТИЗАЦІЇ (ROUTE TABLES)
-# ==========================================
-
-# --- ПУБЛІЧНА ТАБЛИЦЯ ---
-# Направляє весь зовнішній трафік (0.0.0.0/0) в Internet Gateway
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.igw.id
-  }
-
-  tags = { Name = "${var.vpc_name}-public-rt" }
-}
-
-# Прив'язуємо всі публічні підмережі до публічної таблиці
-resource "aws_route_table_association" "public" {
-  count          = length(var.public_subnets)
-  subnet_id      = aws_subnet.public[count.index].id
-  route_table_id = aws_route_table.public.id
-}
-
-# --- ПРИВАТНІ ТАБЛИЦІ ---
-# Створюємо по одній таблиці на кожну приватну підмережу
-resource "aws_route_table" "private" {
-  count  = length(var.private_subnets)
-  vpc_id = aws_vpc.main.id
-
-  # Якщо Prod - йдемо через NAT.
-  # Якщо Dev - маршруту назовні немає.
-  dynamic "route" {
-    for_each = var.environment == "prod" ? [1] : []
-    content {
-      cidr_block     = "0.0.0.0/0"
-      nat_gateway_id = aws_nat_gateway.nat[0].id
-    }
-  }
-
-  tags = { Name = "${var.vpc_name}-private-rt-${count.index + 1}" }
-}
-
-# Прив'язуємо приватні підмережі до відповідних приватних таблиць
-resource "aws_route_table_association" "private" {
-  count          = length(var.private_subnets)
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
 }
