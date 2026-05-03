@@ -40,3 +40,9 @@ variable "engine_version" {
   type        = string
   default     = "18"
 }
+
+variable "jenkins_admin_password" {
+  description = "Пароль адміністратора Jenkins"
+  type        = string
+  sensitive   = true
+}

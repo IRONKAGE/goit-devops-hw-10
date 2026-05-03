@@ -100,9 +100,10 @@ module "eks" {
 }
 
 module "jenkins" {
-  source     = "./modules/jenkins"
-  namespace  = "jenkins"
-  depends_on = [module.eks]
+  source                 = "./modules/jenkins"
+  namespace              = "jenkins"
+  jenkins_admin_password = var.jenkins_admin_password
+  depends_on             = [module.eks]
 }
 
 module "argo_cd" {
