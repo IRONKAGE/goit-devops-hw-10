@@ -108,7 +108,10 @@ module "eks" {
 module "jenkins" {
   source                 = "./modules/jenkins"
   namespace              = "jenkins"
+
+  jenkins_admin_username = var.jenkins_admin_username
   jenkins_admin_password = var.jenkins_admin_password
+
   depends_on             = [module.eks]
 }
 
