@@ -25,6 +25,12 @@ module "vpc" {
   vpc_name           = "${var.project_name}-${var.environment}-vpc"
 }
 
+module "s3_backend" {
+  source       = "./modules/s3-backend"
+  project_name = var.project_name
+  environment  = var.environment
+}
+
 module "ecr" {
   source       = "./modules/ecr"
   ecr_name     = var.ecr_repo_name
